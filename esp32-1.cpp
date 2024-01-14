@@ -18,11 +18,6 @@ void receiveShootData();
 int determineWinnerByProximity();
 void madeInHeaven();
 
-//Configuracion DFPlayer
-HardwareSerial mySoftwareSerial(1);
-DFRobotDFPlayerMini player;
-char cont=0;
-
 //Configuracion OLED 
 Adafruit_SSD1306 display(-1);
 
@@ -40,7 +35,7 @@ Adafruit_SSD1306 oled(ANCHO, ALTO, &Wire, OLED_RESET); //Configuracion OLED
 
 //Matriz Leds
 #define PIN 12 //Se usa el pin 12 para la transmision de datos en la tira de leds
-#define NUMLEDS 50 //Numero de leds
+#define NUMLEDS 49 //Numero de leds
 
 //Variables por jugador
 #define NUM_SHIPS 6 //Numero de barcos 
@@ -51,7 +46,13 @@ Adafruit_SSD1306 oled(ANCHO, ALTO, &Wire, OLED_RESET); //Configuracion OLED
 #define X_PIN 36
 #define Y_PIN 39
 
+#define PSTART 34
 #define PORIENTATION 4 //Boton para cambiar la orientacion de los barcos
+
+//Configuracion DFPlayer
+HardwareSerial mySoftwareSerial(1);
+DFRobotDFPlayerMini player;
+char cont='0';
 
 //Enume para orientacion de barcos
 enum Orientation {
@@ -61,6 +62,7 @@ enum Orientation {
 
 int brillo = 2; //Brillo de los leds
 Adafruit_NeoPixel tira = Adafruit_NeoPixel(NUMLEDS, PIN, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel led = Adafruit_NeoPixel(1, 2, NEO_GRB + NEO_KHZ800);
 
 //Variables antirrebote
 volatile int lastDebounceTime = 0;
@@ -73,8 +75,7 @@ bool inicioJuego = false; //Bandera para saber si el pulsador que inicia el jueg
 bool inicioGuerra = false; // Bandera para saber si inicio la guerra
 volatile int aciertos1 = 0;
 volatile int fallidos1 = 0;
-volatile int aciertos2 = 0;
-volatile int fallidos2 = 0;
+int aciertos2 = 0;
 volatile bool endGame = false; //Bandera para saber si el juego se ha acabado
 volatile boolean unableShips = false;
 volatile int barco = 0; //Numero de barco actual
@@ -177,6 +178,10 @@ const unsigned char* epd_bitmap_allArray[1] = {
 };
 
 void showWinner() {
+  if(cont=='0'){
+    player.play(3);
+    ++cont;
+  }
   display.clearDisplay();
   display.setTextColor(WHITE);	// establece color al unico disponible (pantalla monocromo)
   if(ganador != -1) {
@@ -232,8 +237,8 @@ Verde: Turno del jugador para realizar el disparo
 Rojo: Turno del rival para realizar el disparo
 */
 void turnoLed(uint32_t color) {
-  tira.setPixelColor(49, color);
-  tira.show();
+  led.setPixelColor(0, color);
+  led.show();
 }
 
 // Muestra al barco que ha sido hundido por un periodo de tiempo
@@ -247,7 +252,6 @@ void showShipSank(Ship_t *shipsArray) {
     }
     tira.show();
     player.play(2);
-    //sound('2');
     delay(500); // Breve pausa antes de apagar el barco
     tira.clear();
     if(aciertos1 == 6) {
@@ -267,7 +271,6 @@ void showShipNoSank(Shoot_t *shootsArray, int disparo){
     showLed(currentShoot->x, currentShoot->y, azul); //Encendemos la posición del disparo fallido de color azul
     tira.show();
     player.play(1);
-    //sound('1');
     delay(500); //Se apaga despues de medio segundo
     tira.clear();
     tira.show();
@@ -411,9 +414,9 @@ void moveShips() {
   int joystickY = analogRead(Y_PIN);
   //Movimiento
   if(joystickX < 1000) currentShip->y--;
-  else if(joystickX > 3800) currentShip->y++;
+  else if(joystickX > 3000) currentShip->y++;
   if(joystickY < 1000) currentShip->x++;
-  else if(joystickY > 3800) currentShip->x--;
+  else if(joystickY > 3000) currentShip->x--;
   //Limita los bordes de la matriz para que el usuario no se pueda salir de lugar
   currentShip->x = constrain(currentShip->x, 0, 7 - (currentShip->orientation == HORIZONTAL ? currentShip->size : 1));
   currentShip->y = constrain(currentShip->y, 0, 7 - (currentShip->orientation == VERTICAL ? currentShip->size : 1));
@@ -445,9 +448,9 @@ void moveShoots() {
   int joystickY = analogRead(Y_PIN);
   //Movimiento
   if(joystickX < 1000) currentShoot->y--;
-  else if(joystickX > 3200) currentShoot->y++;
+  else if(joystickX > 3000) currentShoot->y++;
   if(joystickY < 1000) currentShoot->x++;
-  else if(joystickY > 3200) currentShoot->x--;
+  else if(joystickY > 3000) currentShoot->x--;
   //Limita los bordes de la matriz para que el usuario no se pueda salir de lugar
   currentShoot->x = constrain(currentShoot->x, 0, 6);
   currentShoot->y = constrain(currentShoot->y, 0, 6);
@@ -490,14 +493,12 @@ void setup() {
   pinMode(PSTART, INPUT_PULLUP); //El pulsador grande de inicio se define como entrada
   pinMode(PORIENTATION, INPUT_PULLUP); //Pulsador para el cambio de orientacion del barco
   setupLedBoard(); //Inicializa la matriz Led
-  Serial.begin(115200); //USB
-  Serial2.begin(115200); // Inicia UART2 con baudrate 9600, 8 bits de datos, sin paridad, 1 bit de parada
-
   mySoftwareSerial.begin(9600,SERIAL_8N1,9,10); //DFPlayer config
   if (player.begin(mySoftwareSerial)) {
-    player.volume(15); // Set volume to maximum (0 to 30).
+    player.volume(5); // Set volume to maximum (0 to 30).
   }
-
+  Serial.begin(115200); //USB
+  Serial2.begin(115200); // Inicia UART2 con baudrate 9600, 8 bits de datos, sin paridad, 1 bit de parada
   attachInterrupt(digitalPinToInterrupt(SW_PIN), changeShip, CHANGE);
   attachInterrupt(digitalPinToInterrupt(PORIENTATION), changeOrientation, RISING); 
   //Setup display oled
@@ -579,7 +580,6 @@ void receiveShootData(){
   else {
     shipHasNoSank = true; //Se activa para mostrar la cuadricula azul
     showShipNoSank(enemyShoots, enemyShoot->n);
-    fallidos2++;
   }
 }
 
@@ -655,6 +655,7 @@ void madeInHeaven() {
   turnoPlayer1  = false; //Turno del jugador 1 para realizar los disparos
   turnoPlayer2  = false; //Turno del jugador 2 para realizar los disparos  
   response      = "Waiting for something to happen?";
+  cont=0; //Reproduccion del sonido de Victoria
   //Inicializacion de los disparos tanto del jugador como del enemigo
   for(int i = 0; i < NUM_SHOOTS; i++) {
     playerShoots[i] = {i, 3, 3};
@@ -678,6 +679,12 @@ void madeInHeaven() {
 }
 
 void loop() {
+  /*
+  if(digitalRead(PSTART) == LOW && !inicioJuego) {    
+    madeInHeaven(); //Inicializamos todas las estructuras en "0".
+    Serial2.write("s-");//Señal para que la otra esp32 empiece el juego
+  }
+  */
   checkSerial(); //Chequeamos el Serial en cada iteracion
   if(inicioJuego){
     if(ShipsMode) startGame(); //Modo ubicacion de los barcos
